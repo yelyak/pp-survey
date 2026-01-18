@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Kayley Kwok PP Survey Map</title>
+    <link rel="icon" type="image/x-icon" href="/ppsurveyfav.png">
+    <style>
+        body { margin: 0; background: #020205; overflow: hidden; color: white; font-family: 'Arial Black', sans-serif; }
+        canvas { display: block; cursor: grab; }
+        canvas:active { cursor: grabbing; }
+
+        /* Left Side UI */
+        #ui { position: absolute; top: 20px; left: 20px; pointer-events: none; text-shadow: 0 0 10px rgba(0,0,0,0.8); }
+        
+        /* Right Side Logo (The Balance) */
+        #logo-right { 
+            position: absolute; 
+            top: 20px; 
+            right: 20px; 
+            width: 350px; /* Adjusted size for better balance */
+            height: auto; 
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .controls { position: absolute; bottom: 20px; right: 20px; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; pointer-events: auto; backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.1); }
+        button { background: #44ffaa; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; color: #050508; }
+        button:hover { background: #33cc88; }
+
+        #search-container { 
+            position: fixed; 
+            top: 100px; /* Placed below the right-side logo */
+            right: 20px; 
+            z-index: 100; 
+            display: none; 
+            background: rgba(0,0,0,0.85); 
+            padding: 15px; 
+            border: 1px solid #44ffaa; 
+            border-radius: 8px; 
+            backdrop-filter: blur(10px);
+        }
+        #searchInput { background: transparent; border: none; border-bottom: 1px solid #44ffaa; color: white; outline: none; font-family: 'Arial Black', sans-serif; width: 200px; }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <h1 style="margin:0; font-weight: 300; letter-spacing: 2px;">OBSURVER</h1>
+        <p id="counter" style="color: #44ffaa; margin-top: 5px; font-family: 'Segoe UI'; font-weight: bold;">Initializing Deep Space Scan...</p>
+    </div>
+
+    <img src="name.png" id="logo-right" alt="Logo">
+
+    <div id="search-container">
+        <input type="text" id="searchInput" placeholder="Search Planet Name...">
+    </div>
+
+    <div class="controls">
+        <button onclick="resetCamera()">RESET OBSURVER VIEW</button>
+    </div>
+    
+    <div id="search-layer" style="position:absolute; opacity:0; pointer-events:none;"></div>
+
+    <canvas id="map"></canvas>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
+        import { getDatabase, ref, onChildAdded } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-database.js";
+
+        // --- 1. FIREBASE CONFIG ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyDDFxXYaY8T2OWL8G39ytzK4Soltu5mVlw",
+            authDomain: "ppsurveyyy.firebaseapp.com",
+            databaseURL: "https://ppsurveyyy-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "ppsurveyyy",
+            storageBucket: "ppsurveyyy.firebasestorage.app",
+            messagingSenderId: "852463900112",
+            appId: "1:852463900112:web:9244396b46ef48892e95d5",
+            measurementId: "G-16JKE7R6DS"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const planetsRef = ref(db, 'planets');
+
+        // --- 2. SETUP & BACKGROUND DATA ---
+        const canvas = document.getElementById('map');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        let planets = [];
+        let starData = [];
+        let nebulaClouds = [];
+        let camera = { x: 0, y: 0, zoom: 0.8 };
+        let isDragging = false;
+        let lastMouse = { x: 0, y: 0 };
+
+        function generateDeepSpace() {
+            starData = []; // Clear old data
+            nebulaClouds = [];
+
+            // Increase range to 20,000 pixels (Space is big!)
+            const range = 20000; 
+
+            for (let i = 0; i < 2000; i++) {
+                starData.push({
+                    x: (Math.random() - 0.5) * range,
+                    y: (Math.random() - 0.5) * range,
+                    size: Math.random() * 2,
+                    twinkleSpeed: 0.01 + Math.random() * 0.03,
+                    phase: Math.random() * Math.PI * 2
+                });
+            }
+
+            const colors = ['rgba(100, 50, 255,', 'rgba(0, 200, 255,', 'rgba(255, 50, 150,', 'rgba(0, 255, 200,'];
+            for (let i = 0; i < 20; i++) {
+                nebulaClouds.push({
+                    x: (Math.random() - 0.5) * range,
+                    y: (Math.random() - 0.5) * range,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    size: 2000 + Math.random() * 3000
+                });
+            }
+        }
+        function init() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            if(starData.length === 0) generateDeepSpace();
+        }
+
+        // --- 3. FIREBASE LISTENER ---
+        onChildAdded(planetsRef, (snapshot) => {
+            const data = snapshot.val();
+            planets.push(data);
+            
+            document.getElementById('counter').innerText = `SYSTEMS DETECTED: ${planets.length}`;
+
+            // Create a "Findable" element
+            const searchLayer = document.getElementById('search-layer');
+            const span = document.createElement('span');
+            
+            // We give it a little bit of styling so the browser 'sees' it
+            span.innerText = data.name;
+            span.style.display = "inline-block";
+            span.style.padding = "20px"; 
+            span.id = `ref-${snapshot.key}`;
+            searchLayer.appendChild(span);
+
+            // This is the magic: when the browser 'finds' and selects this text...
+            document.addEventListener('selectionchange', () => {
+                const selection = window.getSelection().toString().trim();
+                if (selection.toLowerCase() === data.name.toLowerCase()) {
+                    focusOnPlanet(data);
+                }
+            });
+        });
+
+        function focusOnPlanet(p) {
+    // 1. Move camera to planet coordinates
+            camera.x = p.x;
+            camera.y = p.y;
+            camera.zoom = 2; // Zoom in close!
+
+            // 2. Convert timestamp to readable date
+            const date = new Date(p.timestamp).toLocaleString();
+            
+            // 3. Show a temporary alert or UI popup
+            const status = document.getElementById('counter');
+            status.innerHTML = `FOUND: <span style="color:white">${p.name}</span><br>
+                                LAUNCHED: <span style="color:white">${date}</span>`;
+            
+            // Reset status text after 5 seconds
+            setTimeout(() => {
+                status.innerText = `SYSTEMS DETECTED: ${planets.length}`;
+            }, 5000);
+        }
+        
+
+        // --- 4. DRAWING FUNCTIONS ---
+        function drawNebulas() {
+            nebulaClouds.forEach(n => {
+                const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.size);
+                grad.addColorStop(0, n.color + '0.12)');
+                grad.addColorStop(0.5, n.color + '0.05)');
+                grad.addColorStop(1, 'transparent');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(n.x, n.y, n.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function drawStars() {
+            starData.forEach(s => {
+                const opacity = 0.3 + Math.abs(Math.sin(Date.now() * s.twinkleSpeed + s.phase)) * 0.7;
+                ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+                ctx.fillRect(s.x, s.y, s.size, s.size);
+            });
+        }
+
+        function draw() {
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.clearRect(0, 0, width, height);
+
+            // Camera Viewport
+            ctx.translate(width/2, height/2);
+            ctx.scale(camera.zoom, camera.zoom);
+            ctx.translate(-camera.x, -camera.y);
+
+            drawNebulas();
+            drawStars();
+
+            // Draw Planets
+            planets.forEach(p => {
+                // Glow
+                const pulse = Math.sin(Date.now() * 0.003) * 3;
+                const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 2 + pulse);
+                grad.addColorStop(0, p.color);
+                grad.addColorStop(1, 'transparent');
+                ctx.fillStyle = grad;
+                ctx.globalAlpha = 0.4;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size * 2.5 + pulse, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Planet
+                ctx.globalAlpha = 1.0;
+                ctx.fillStyle = p.color;
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Name Tag
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = "white";
+                ctx.font = `bold ${14 / camera.zoom}px 'Segoe UI'`;
+                ctx.textAlign = "center";
+                ctx.fillText(p.name.toUpperCase(), p.x, p.y + p.size + (25 / camera.zoom));
+            });
+
+            requestAnimationFrame(draw);
+        }
+
+        // --- 5. CONTROLS ---
+        canvas.onmousedown = (e) => { isDragging = true; lastMouse = { x: e.clientX, y: e.clientY }; };
+        window.onmouseup = () => isDragging = false;
+        window.onmousemove = (e) => {
+            if (isDragging) {
+                camera.x -= (e.clientX - lastMouse.x) / camera.zoom;
+                camera.y -= (e.clientY - lastMouse.y) / camera.zoom;
+                lastMouse = { x: e.clientX, y: e.clientY };
+            }
+        };
+        canvas.onwheel = (e) => {
+            const zoomSpeed = 1.15;
+            camera.zoom *= e.deltaY > 0 ? (1/zoomSpeed) : zoomSpeed;
+            camera.zoom = Math.min(Math.max(camera.zoom, 0.01), 10);
+        };
+        window.resetCamera = () => {
+            camera.x = 0;
+            camera.y = 0;
+            // Zoom out to 0.1 or 0.05 to see the massive scale
+            camera.zoom = 0.1; 
+            
+            const counter = document.getElementById('counter');
+            counter.innerText = "VIEW RESET: Scan Active";
+            setTimeout(() => { counter.innerText = `SYSTEMS DETECTED: ${planets.length}`; }, 3000);
+        };
+
+        window.addEventListener('keydown', (e) => {
+    // Check if user is pressing Cmd+F (Mac) or Ctrl+F (Windows)
+            const isSearchHotKey = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f';
+
+            if (isSearchHotKey) {
+                e.preventDefault(); // Stop the default browser search bar from popping up
+                
+                const box = document.getElementById('search-container');
+                box.style.display = 'block';
+                
+                const input = document.getElementById('searchInput');
+                input.value = ""; // Clear previous search
+                input.focus();
+            }
+
+            // Close search box if user hits Escape
+            if (e.key === 'Escape') {
+                document.getElementById('search-container').style.display = 'none';
+            }
+        });
+
+        // Actual search logic
+        document.getElementById('searchInput').oninput = (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            const found = planets.find(p => p.name.toLowerCase() === query);
+            
+            if (found) {
+                focusOnPlanet(found);
+                // Optional: Wait 1 second then hide the search bar
+                setTimeout(() => {
+                    document.getElementById('search-container').style.display = 'none';
+                }, 1000);
+            }
+        };
+
+        window.onresize = init;
+        init();
+        draw();
+    </script>
+</body>
+</html>

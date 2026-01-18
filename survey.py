@@ -6,11 +6,13 @@ import time
 
 # --- 1. THE CONFIG STUFF ---
 if not firebase_admin._apps:
-    # This looks for the JSON file you downloaded
-    cred = credentials.Certificate("serviceAccountKey.json") 
-    
+    if "firebase" in st.secrets:
+        firebase_secrets = dict(st.secrets["firebase"])
+        firebase_secrets["private_key"] = firebase_secrets["private_key"].replace("\\n", "\n")
+        cred = credentials.Certificate(firebase_secrets)
+    else:
+        cred = credentials.Certificate("serviceAccountKey.json") 
     firebase_admin.initialize_app(cred, {
-        # PASTE YOUR DATABASE URL BELOW
         'databaseURL': 'https://ppsurveyyy-default-rtdb.asia-southeast1.firebasedatabase.app'
     })
 

@@ -8,22 +8,30 @@ import json
 
 # --- FIREBASE INITIALIZATION ---
 # --- FIREBASE INITIALIZATION ---
+# --- FIREBASE INITIALIZATION ---
 if not firebase_admin._apps:
     if "FIREBASE_BASE64" in st.secrets:
-        # Added .strip() to remove any invisible spaces from the paste
-        base64_string = st.secrets["FIREBASE_BASE64"].strip() 
+        # 1. Get the string and remove any accidental spaces/enters
+        base64_string = st.secrets["FIREBASE_BASE64"].strip()
         
+        # 2. Decode the Base64
         decoded_bytes = base64.b64decode(base64_string)
-        # .decode("utf-8") ensures it reads as standard text
-        firebase_secrets = json.loads(decoded_bytes.decode("utf-8"))
+        decoded_str = decoded_bytes.decode("utf-8")
+        
+        # 3. FIX: Sometimes private keys have escaped newlines like \\n
+        # We force them back to real newlines so Google can read the signature
+        firebase_secrets = json.loads(decoded_str)
+        if "private_key" in firebase_secrets:
+            firebase_secrets["private_key"] = firebase_secrets["private_key"].replace("\\n", "\n")
+            
         cred = credentials.Certificate(firebase_secrets)
     else:
+        # Local Mac fallback
         cred = credentials.Certificate("serviceAccountKey.json")
     
     firebase_admin.initialize_app(cred, {
         'databaseURL': 'https://ppsurveyyy-default-rtdb.asia-southeast1.firebasedatabase.app'
     })
-
 # --- 2. THE SURVEY UI ---
 st.set_page_config(page_icon="ppsurveyfav.png")
 st.image("name.png", caption="Kayley Kwok Y10J")

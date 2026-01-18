@@ -7,20 +7,19 @@ import base64
 import json
 
 # --- FIREBASE INITIALIZATION ---
+# --- FIREBASE INITIALIZATION ---
 if not firebase_admin._apps:
-    # 1. Check if we are on the Web (using the Base64 string)
     if "FIREBASE_BASE64" in st.secrets:
-        # Decode the solid block back into a dictionary
-        base64_string = st.secrets["FIREBASE_BASE64"]
+        # Added .strip() to remove any invisible spaces from the paste
+        base64_string = st.secrets["FIREBASE_BASE64"].strip() 
+        
         decoded_bytes = base64.b64decode(base64_string)
+        # .decode("utf-8") ensures it reads as standard text
         firebase_secrets = json.loads(decoded_bytes.decode("utf-8"))
         cred = credentials.Certificate(firebase_secrets)
-    
-    # 2. Check if we are on your Mac (using the JSON file)
     else:
         cred = credentials.Certificate("serviceAccountKey.json")
     
-    # 3. Connect to the Database
     firebase_admin.initialize_app(cred, {
         'databaseURL': 'https://ppsurveyyy-default-rtdb.asia-southeast1.firebasedatabase.app'
     })

@@ -1,22 +1,24 @@
 import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, db
-import random
-import time
-import base64  # Added for the "Nuclear Option"
-import json    # Added for the "Nuclear Option"
+import base64
+import json
 
-# --- 1. THE CONFIG STUFF ---
+# --- FIREBASE INITIALIZATION ---
 if not firebase_admin._apps:
+    # 1. Check if we are on the Web (using the Base64 string)
     if "FIREBASE_BASE64" in st.secrets:
-        base64_string = st.secrets["FIREBASE_BASE64"]        
+        # Decode the solid block back into a dictionary
+        base64_string = st.secrets["FIREBASE_BASE64"]
         decoded_bytes = base64.b64decode(base64_string)
-        decoded_str = decoded_bytes.decode("utf-8")        
-        firebase_secrets = json.loads(decoded_str)        
+        firebase_secrets = json.loads(decoded_bytes.decode("utf-8"))
         cred = credentials.Certificate(firebase_secrets)
-    else:
-        cred = credentials.Certificate("serviceAccountKey.json") 
     
+    # 2. Check if we are on your Mac (using the JSON file)
+    else:
+        cred = credentials.Certificate("serviceAccountKey.json")
+    
+    # 3. Connect to the Database
     firebase_admin.initialize_app(cred, {
         'databaseURL': 'https://ppsurveyyy-default-rtdb.asia-southeast1.firebasedatabase.app'
     })

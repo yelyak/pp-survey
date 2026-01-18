@@ -8,7 +8,11 @@ import time
 if not firebase_admin._apps:
     if "firebase" in st.secrets:
         firebase_secrets = dict(st.secrets["firebase"])
-        firebase_secrets["private_key"] = firebase_secrets["private_key"].replace("\\n", "\n")
+        if "firebase" in st.secrets:
+            firebase_secrets = dict(st.secrets["firebase"])
+            # Remove the .replace line here!
+            cred = credentials.Certificate(firebase_secrets)
+
         cred = credentials.Certificate(firebase_secrets)
     else:
         cred = credentials.Certificate("serviceAccountKey.json") 

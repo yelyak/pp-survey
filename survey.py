@@ -3,19 +3,20 @@ import firebase_admin
 from firebase_admin import credentials, db
 import random
 import time
+import base64  # Added for the "Nuclear Option"
+import json    # Added for the "Nuclear Option"
 
 # --- 1. THE CONFIG STUFF ---
 if not firebase_admin._apps:
-    if "firebase" in st.secrets:
-        firebase_secrets = dict(st.secrets["firebase"])
-        if "firebase" in st.secrets:
-            firebase_secrets = dict(st.secrets["firebase"])
-            # Remove the .replace line here!
-            cred = credentials.Certificate(firebase_secrets)
-
+    if "FIREBASE_BASE64" in st.secrets:
+        base64_string = st.secrets["FIREBASE_BASE64"]        
+        decoded_bytes = base64.b64decode(base64_string)
+        decoded_str = decoded_bytes.decode("utf-8")        
+        firebase_secrets = json.loads(decoded_str)        
         cred = credentials.Certificate(firebase_secrets)
     else:
         cred = credentials.Certificate("serviceAccountKey.json") 
+    
     firebase_admin.initialize_app(cred, {
         'databaseURL': 'https://ppsurveyyy-default-rtdb.asia-southeast1.firebasedatabase.app'
     })
